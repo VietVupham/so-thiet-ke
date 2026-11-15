@@ -317,22 +317,76 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
         session=r2.data.session;closeOv();res()});
     });
   }
+  function meMail(){return ((session&&session.user&&session.user.email)||'').toLowerCase()}
+  function waitUi(){
+    return new Promise(function(res){
+      var o=overlay('<div style="background:var(--surface,#fff);border:1px solid var(--line,#d5dbe0);border-radius:10px;padding:1.4rem;max-width:24rem;display:grid;gap:.7rem"><b>Đang chờ chủ sổ duyệt</b><p style="margin:0;font-size:.875rem">Yêu cầu truy cập của <b>'+meMail()+'</b> đã được gửi. Khi chủ sổ duyệt, bấm "Kiểm tra lại" để vào xem sổ.</p><button class="btn pri" id="rc" type="button" style="min-height:2.4rem">Kiểm tra lại</button><button class="btn" id="lo" type="button" style="min-height:2.4rem">Đăng xuất</button><p id="rm" style="margin:0;font-size:.8125rem;color:#B3261E"></p></div>');
+      o.querySelector('#rc').addEventListener('click',async function(){var ok=await isAllowed();if(ok)res('ok');else o.querySelector('#rm').textContent='Chưa được duyệt.'});
+      o.querySelector('#lo').addEventListener('click',async function(){await sb.auth.signOut();session=null;res('out')});
+    });
+  }
+  async function isAllowed(){
+    var r=await sb.from('allowed_users').select('email,is_admin');
+    return !r.error&&(r.data||[]).some(function(x){return String(x.email).toLowerCase()===meMail()});
+  }
   async function gate(){
     for(;;){
-      var r=await sb.from('allowed_users').select('email').limit(1);
-      if(!r.error&&r.data&&r.data.length)return;
-      await new Promise(function(res){
-        var o=overlay('<div style="background:var(--surface,#fff);border:1px solid var(--line,#d5dbe0);border-radius:10px;padding:1.4rem;max-width:24rem;display:grid;gap:.7rem"><b>Tài khoản chưa được cấp quyền</b><p style="margin:0;font-size:.875rem">'+((session&&session.user.email)||'')+' chưa nằm trong danh sách được xem sổ. Hãy nhờ chủ sổ thêm email này vào danh sách, hoặc đăng nhập bằng tài khoản khác.</p><button class="btn pri" id="lo" type="button" style="min-height:2.4rem">Đăng xuất</button></div>');
-        o.querySelector('#lo').addEventListener('click',async function(){await sb.auth.signOut();session=null;await loginUi();res()})});
+      if(!session)await loginUi();
+      if(await isAllowed())return;
+      await sb.from('access_requests').upsert({email:meMail()});
+      var w=await waitUi();
+      if(w==='ok')return;
     }
   }
+  function isStandalone(){return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true||/[?&]web=1/.test(location.search)}
+  function installPage(){
+    var ua=navigator.userAgent,ios=/iPhone|iPad|iPod/.test(ua)||(/Macintosh/.test(ua)&&navigator.maxTouchPoints>1),and=/Android/.test(ua);
+    var steps=ios?'<ol style="margin:.3rem 0 0;padding-left:1.2rem;display:grid;gap:.3rem"><li>Mở trang này bằng <b>Safari</b> (không dùng Chrome hay Zalo).</li><li>Bấm nút <b>Chia sẻ</b> (hình vuông có mũi tên lên) ở thanh dưới.</li><li>Chọn <b>Thêm vào Màn hình chính</b>, bấm <b>Thêm</b>.</li></ol>'
+      :and?'<ol style="margin:.3rem 0 0;padding-left:1.2rem;display:grid;gap:.3rem"><li>Mở trang này bằng <b>Chrome</b>.</li><li>Bấm nút <b>Cài đặt ứng dụng</b> ở trên, hoặc menu <b>⋮</b> chọn <b>Cài đặt ứng dụng</b> / <b>Thêm vào màn hình chính</b>.</li></ol>'
+      :'<ol style="margin:.3rem 0 0;padding-left:1.2rem;display:grid;gap:.3rem"><li>Dùng <b>Chrome</b> hoặc <b>Edge</b>.</li><li>Bấm nút <b>Cài đặt ứng dụng</b> ở trên, hoặc biểu tượng cài đặt ở cuối thanh địa chỉ.</li></ol>';
+    var o=overlay('<div style="background:var(--surface,#fff);border:1px solid var(--line,#d5dbe0);border-radius:12px;padding:1.5rem;max-width:26rem;width:100%;display:grid;gap:.8rem"><h1 style="margin:0;font-size:1.3rem">Sổ theo dõi thiết kế</h1><p style="margin:0;font-size:.9rem;color:var(--ink2,#555)">Hãy cài ứng dụng về thiết bị của bạn. Sau khi cài, mở ứng dụng từ biểu tượng trên màn hình để đăng nhập.</p><button id="ib" class="btn pri" type="button" style="min-height:2.8rem;font-size:1rem">⬇ Cài đặt ứng dụng</button><div id="ih" style="font-size:.875rem">'+steps+'</div><p style="margin:0;font-size:.8125rem;color:var(--ink2,#555)">Đã đăng ký và xác nhận email xong? Hãy mở ứng dụng đã cài để đăng nhập.</p></div>');
+    var ib=o.querySelector('#ib'),ih=o.querySelector('#ih');
+    ib.addEventListener('click',function(){if(inst){doInstall()}else{ih.style.outline='2px solid #1B5E86';ih.style.padding='.4rem';ih.scrollIntoView({block:'center'})}});
+  }
   var ready=(async function(){
-    if(!C.url||!C.key||/YOUR|DIEN/i.test(C.url+C.key)){overlay('<div style="max-width:28rem;font-size:.9rem"><b>Chưa cấu hình.</b> Mở tệp <code>config.js</code> và điền địa chỉ dự án cùng khóa công khai của Supabase (xem HUONG-DAN).</div>');return new Promise(function(){})}
+    if(!isStandalone()){installPage();return new Promise(function(){})}
+    if(!C.url||!C.key||/YOUR|DIEN/i.test(C.url+C.key)){overlay('<div style="max-width:28rem;font-size:.9rem"><b>Chưa cấu hình.</b> Mở tệp <code>config.js</code> và điền địa chỉ dự án cùng khóa công khai của Supabase.</div>');return new Promise(function(){})}
     sb=window.supabase.createClient(C.url,C.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     var r=await sb.auth.getSession();session=r.data&&r.data.session;
-    if(!session)await loginUi();
-    await gate();closeOv();
+    await gate();closeOv();adminInit();
   })();
+  async function adminInit(){
+    try{
+      var r=await sb.from('allowed_users').select('email,is_admin'),rows=r.data||[],mine=rows.filter(function(x){return String(x.email).toLowerCase()===meMail()})[0];
+      if(!mine||!mine.is_admin)return;
+      var btn=document.createElement('button');btn.type='button';btn.id='admBtn';btn.textContent='👤 Người dùng';
+      btn.style.cssText='position:fixed;left:1rem;bottom:1rem;z-index:50;font:600 .8125rem inherit;padding:.5rem .8rem;border-radius:999px;border:1px solid var(--line,#ccc);background:var(--surface,#fff);color:var(--ink,#111);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15)';
+      document.body.appendChild(btn);
+      async function load(){var a=await sb.from('access_requests').select('email,requested_at').order('requested_at'),b=await sb.from('allowed_users').select('email,is_admin').order('email');return {req:a.data||[],ok:b.data||[]}}
+      async function badge(){var d=await load();btn.textContent='👤 Người dùng'+(d.req.length?' ('+d.req.length+' chờ duyệt)':'');btn.style.borderColor=d.req.length?'#B45309':'';btn.style.background=d.req.length?'#FBEBC8':''}
+      function esc2(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
+      async function open(){
+        var d=await load(),m=document.getElementById('admov');if(m)m.remove();
+        m=document.createElement('div');m.id='admov';m.style.cssText='position:fixed;inset:0;z-index:98;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:1rem';
+        var h='<div style="background:var(--surface,#fff);color:var(--ink,#111);border-radius:10px;padding:1.2rem;max-width:30rem;width:100%;max-height:85vh;overflow:auto;display:grid;gap:.8rem"><div style="display:flex;justify-content:space-between;align-items:center"><b>Quản lý người dùng</b><button class="btn" data-x="close" type="button">Đóng</button></div><b style="font-size:.875rem">Chờ duyệt ('+d.req.length+')</b>';
+        h+=d.req.length?d.req.map(function(x){return '<div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"><span style="flex:1;overflow-wrap:anywhere">'+esc2(x.email)+'</span><button class="btn pri" data-ap="'+esc2(x.email)+'" type="button">Duyệt</button><button class="btn" data-rj="'+esc2(x.email)+'" type="button">Từ chối</button></div>'}).join(''):'<span style="font-size:.875rem;color:var(--ink2,#555)">Không có yêu cầu nào.</span>';
+        h+='<b style="font-size:.875rem">Được xem sổ ('+d.ok.length+')</b>'+d.ok.map(function(x){return '<div style="display:flex;gap:.4rem;align-items:center"><span style="flex:1;overflow-wrap:anywhere">'+esc2(x.email)+(x.is_admin?' · chủ sổ':'')+'</span>'+(x.is_admin?'':'<button class="btn" data-rv="'+esc2(x.email)+'" type="button">Thu hồi</button>')+'</div>'}).join('')+'<p id="admm" style="margin:0;font-size:.8125rem;color:#B3261E"></p></div>';
+        m.innerHTML=h;document.body.appendChild(m);
+        m.addEventListener('click',async function(e){
+          var t=e.target.closest('button');if(!t){if(e.target===m)m.remove();return}
+          var msg=m.querySelector('#admm');
+          try{
+            if(t.dataset.x){m.remove();badge();return}
+            if(t.dataset.ap){var r1=await sb.from('allowed_users').upsert({email:t.dataset.ap});if(r1.error)throw r1.error;await sb.from('access_requests').delete().eq('email',t.dataset.ap)}
+            if(t.dataset.rj){var r2=await sb.from('access_requests').delete().eq('email',t.dataset.rj);if(r2.error)throw r2.error}
+            if(t.dataset.rv){if(!confirm('Thu hồi quyền xem sổ của '+t.dataset.rv+'?'))return;var r3=await sb.from('allowed_users').delete().eq('email',t.dataset.rv);if(r3.error)throw r3.error}
+            open();badge();
+          }catch(er){msg.textContent='Chưa thực hiện được: '+(er.message||er)}
+        });
+      }
+      btn.addEventListener('click',open);badge();setInterval(badge,60000);
+    }catch(e){}
+  }
   function store(c){return stores[c]||(stores[c]={rows:{},ls:[],loaded:false})}
   function notify(c){var s=store(c),docs=Object.keys(s.rows).map(function(id){return {id:id,data:function(){return JSON.parse(JSON.stringify(s.rows[id]))}}});s.ls.forEach(function(l){try{l.ok({docs:docs})}catch(e){}})}
   async function fetchAll(c){
