@@ -1,7 +1,10 @@
 <!DOCTYPE html>
-<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="manifest.webmanifest"><meta name="theme-color" content="#1B5E86"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<html lang="vi"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><link rel="manifest" href="manifest.webmanifest"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
 <title>Sổ theo dõi thiết kế</title>
 <meta name="claude:viewport-fit-sides" content="cover">
+<meta name="theme-color" content="#EDF0F2" id="metaTheme">
+<script>(function(){var t='auto';try{t=localStorage.getItem('stk-theme')||'auto'}catch(e){}window.__theme=t;if(t==='light'||t==='dark')document.documentElement.setAttribute('data-theme',t)})();</script>
+
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:wght@400;500;600&family=Bricolage+Grotesque:opsz,wght@12..96,600;12..96,700&family=IBM+Plex+Mono:wght@400;500&display=swap">
@@ -234,6 +237,47 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
 .item.rhit{background:var(--warn-bg);box-shadow:inset 4px 0 0 var(--warn)}
 .rchg{display:block;margin-top:.2rem;font-size:.8125rem;font-weight:600;color:var(--warn)}
 .hist tr.rhl td{background:var(--warn-bg);color:var(--warn);font-weight:600}
+
+/* ===== Chủ đề + đọc trên điện thoại ===== */
+:root[data-theme="light"]{color-scheme:light}
+.sync{flex-wrap:wrap}
+.thm{display:inline-flex;border:1px solid var(--line);border-radius:999px;background:var(--surface);overflow:hidden}
+.thm button{border:0;background:none;color:var(--ink2);font:500 .8125rem var(--f-body);padding:.35rem .7rem;cursor:pointer;min-height:2rem}
+.thm button[aria-pressed="true"]{background:var(--accent);color:var(--accent-ink)}
+.top{border-top-color:var(--accent)}
+.gh1{background:var(--accent-soft);color:var(--ink);border-left:5px solid var(--accent)}
+.gh1 .gname{font-size:1.1rem}
+.gh1 .gcount{opacity:1;color:var(--ink2)}
+.list{box-shadow:0 1px 2px rgba(20,33,43,.06)}
+.item .head:active{background:var(--surface2)}
+.detail{background:var(--surface2)}
+@media (max-width:640px){
+  body{font-size:16px;line-height:1.55;padding-block:.75rem 4rem;padding-left:max(12px,env(safe-area-inset-left,0px));padding-right:max(12px,env(safe-area-inset-right,0px))}
+  .wrap{gap:.8rem}
+  h1{font-size:1.5rem}
+  input,select,textarea{font-size:16px;min-height:2.75rem}
+  .btn{min-height:2.75rem;font-size:.9375rem;padding:.55rem 1rem}
+  .btn.sm{min-height:2.25rem;font-size:.875rem}
+  .bar .btns{width:100%}
+  .bar .btns .btn{flex:1 1 auto}
+  .bar select{flex:1 1 100%;width:100%}
+  .head{padding:.9rem .85rem}
+  .code{font-size:.875rem}
+  .ttl{font-size:1rem;line-height:1.4}
+  .sub,.meta,.note,.hint{font-size:.875rem}
+  .pill{font-size:.8125rem}
+  .tab .lbl{font-size:.875rem}
+  .tab{padding:.65rem .8rem}
+  .gh1{padding:.85rem .85rem}
+  .gh2{padding:.75rem .25rem}
+  .sec{padding:0 .5rem}
+  .detail{padding:.25rem .85rem 1rem}
+  .kv dt{font-size:.75rem}
+  .panel{padding:1rem}
+  .hist{font-size:.875rem}
+  .thm{width:100%}.thm button{flex:1;min-height:2.5rem}
+  .rel-h select{min-width:0;width:100%}
+}
 </style>
 
 <div class="wrap">
@@ -242,7 +286,7 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
       <div class="eyebrow">Five Star Odyssey</div>
       <h1>Sổ theo dõi thiết kế</h1>
     </div>
-    <div class="sync"><span class="dot" id="dot"></span><span id="syncTxt">Đang kết nối…</span></div>
+    <div class="sync"><div class="thm" id="thm" role="group" aria-label="Giao diện"><button type="button" data-th="auto">Tự động</button><button type="button" data-th="light">☀ Sáng</button><button type="button" data-th="dark">☾ Tối</button></div><span class="dot" id="dot"></span><span id="syncTxt">Đang kết nối…</span></div>
   </header>
 
   <section class="rel" id="rel" aria-label="Bộ bản vẽ phát hành"></section>
@@ -272,6 +316,22 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
 <div class="scrim" id="modal" hidden></div>
 <div class="toast" id="toast" role="status" aria-live="polite" hidden></div>
 
+<script>
+(function(){
+  var cur=window.__theme||'auto';
+  function apply(t){
+    cur=t;var r=document.documentElement;
+    if(t==='light'||t==='dark')r.setAttribute('data-theme',t);else r.removeAttribute('data-theme');
+    try{localStorage.setItem('stk-theme',t)}catch(e){}
+    var b=document.querySelectorAll('#thm [data-th]');for(var i=0;i<b.length;i++)b[i].setAttribute('aria-pressed',String(b[i].dataset.th===t));
+    var dark=t==='dark'||(t==='auto'&&window.matchMedia&&matchMedia('(prefers-color-scheme: dark)').matches);
+    var m=document.getElementById('metaTheme');if(m)m.setAttribute('content',dark?'#0F171D':'#EDF0F2');
+  }
+  document.addEventListener('click',function(e){var b=e.target.closest&&e.target.closest('#thm [data-th]');if(b)apply(b.dataset.th)});
+  if(window.matchMedia)try{matchMedia('(prefers-color-scheme: dark)').addEventListener('change',function(){apply(cur)})}catch(e){}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',function(){apply(cur)});else apply(cur);
+})();
+</script>
 <script>window.STANDALONE=true;</script>
 <script src="config.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
@@ -346,7 +406,17 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
       :'<ol style="margin:.3rem 0 0;padding-left:1.2rem;display:grid;gap:.3rem"><li>Dùng <b>Chrome</b> hoặc <b>Edge</b>.</li><li>Bấm nút <b>Cài đặt ứng dụng</b> ở trên, hoặc biểu tượng cài đặt ở cuối thanh địa chỉ.</li></ol>';
     var o=overlay('<div style="background:var(--surface,#fff);border:1px solid var(--line,#d5dbe0);border-radius:12px;padding:1.5rem;max-width:26rem;width:100%;display:grid;gap:.8rem"><h1 style="margin:0;font-size:1.3rem">Sổ theo dõi thiết kế</h1><p style="margin:0;font-size:.9rem;color:var(--ink2,#555)">Hãy cài ứng dụng về thiết bị của bạn. Sau khi cài, mở ứng dụng từ biểu tượng trên màn hình để đăng nhập.</p><button id="ib" class="btn pri" type="button" style="min-height:2.8rem;font-size:1rem">⬇ Cài đặt ứng dụng</button><div id="ih" style="font-size:.875rem">'+steps+'</div><p style="margin:0;font-size:.8125rem;color:var(--ink2,#555)">Đã đăng ký và xác nhận email xong? Hãy mở ứng dụng đã cài để đăng nhập.</p></div>');
     var ib=o.querySelector('#ib'),ih=o.querySelector('#ih');
-    ib.addEventListener('click',function(){if(inst){doInstall()}else{ih.style.outline='2px solid #1B5E86';ih.style.padding='.4rem';ih.scrollIntoView({block:'center'})}});
+    var inapp=/Zalo|FBAN|FBAV|FB_IAB|Instagram|Messenger|Line\/|MicroMessenger|; wv\)/i.test(ua);
+    var wm=document.createElement('p');wm.style.cssText='margin:0;font-size:.875rem;color:var(--warn,#7A4E00);background:var(--warn-bg,#FBEBC8);border-radius:8px;padding:.6rem .75rem';wm.hidden=true;ib.parentNode.insertBefore(wm,ih);
+    function say(t){wm.textContent=t;wm.hidden=false}
+    if(inapp)say('Bạn đang mở trong trình duyệt của ứng dụng khác (Zalo/Facebook...), nên không cài được. Hãy bấm ⋮ hoặc "Mở bằng trình duyệt", chọn '+(ios?'Safari':'Chrome')+' rồi cài lại.');
+    ib.addEventListener('click',function(){
+      if(inst){doInstall();return}
+      if(ios)say('iPhone/iPad không có nút cài tự động. Mở bằng Safari → bấm Chia sẻ → Thêm vào Màn hình chính (làm theo các bước bên dưới).');
+      else if(inapp)say('Hãy mở link bằng '+(ios?'Safari':'Chrome')+' trước khi cài.');
+      else say('Trình duyệt chưa cho cài tự động. Nếu đã cài rồi thì mở ứng dụng từ màn hình chính. Nếu chưa, bấm menu ⋮ của Chrome → "Cài đặt ứng dụng" / "Thêm vào màn hình chính" (các bước bên dưới).');
+      ih.style.outline='2px solid #1B5E86';ih.style.padding='.4rem';ih.scrollIntoView({block:'center'});
+    });
   }
   var ready=(async function(){
     if(!isStandalone()){installPage();return new Promise(function(){})}
