@@ -353,30 +353,32 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
     f.addEventListener('click',doInstall);document.body.appendChild(f);
   });
   var ST='font:inherit;padding:.5rem;border:1px solid var(--line,#ccc);border-radius:6px;background:var(--surface,#fff);color:inherit';
-  function loginUi(msg,mode){
+  function entryUi(opt){
+    opt=opt||{};
     return new Promise(function(res){
-      mode=mode||'in';var reg=mode==='up';
-      var o=overlay('<form id="lf" style="background:var(--surface,#fff);border:1px solid var(--line,#d5dbe0);border-radius:10px;padding:1.4rem;max-width:23rem;width:100%;display:grid;gap:.7rem"><h1 style="margin:0;font-size:1.25rem">Sổ theo dõi thiết kế</h1><div style="display:flex;gap:.4rem"><button type="button" data-m="in" class="btn'+(reg?'':' pri')+'" style="flex:1;min-height:2.2rem">Đăng nhập</button><button type="button" data-m="up" class="btn'+(reg?' pri':'')+'" style="flex:1;min-height:2.2rem">Đăng ký</button></div><button type="button" id="lg" class="btn" style="min-height:2.4rem">Đăng nhập bằng Google</button><p style="margin:0;text-align:center;font-size:.75rem;color:var(--ink2,#555)">hoặc dùng email</p><input id="le" type="email" placeholder="Email" autocomplete="username" required style="'+ST+'"><input id="lp" type="password" placeholder="Mật khẩu'+(reg?' (ít nhất 6 ký tự)':'')+'" minlength="6" autocomplete="'+(reg?'new-password':'current-password')+'" required style="'+ST+'">'+(reg?'<input id="lp2" type="password" placeholder="Nhập lại mật khẩu" minlength="6" autocomplete="new-password" required style="'+ST+'">':'')+'<button class="btn pri" type="submit" style="min-height:2.4rem">'+(reg?'Tạo tài khoản':'Đăng nhập')+'</button><button type="button" id="instBtn" class="btn" hidden style="min-height:2.2rem">⬇ Cài ứng dụng về máy</button><p id="lm" style="margin:0;font-size:.8125rem;color:#B3261E">'+(msg||'')+'</p></form>');
-      var lm=o.querySelector('#lm');if(inst)o.querySelector('#instBtn').hidden=false;
-      o.querySelector('#instBtn').addEventListener('click',doInstall);
-      [].forEach.call(o.querySelectorAll('[data-m]'),function(b){b.addEventListener('click',function(){loginUi('',b.dataset.m).then(res)})});
-      o.querySelector('#lg').addEventListener('click',async function(){
-        var r=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname}});
-        if(r.error)lm.textContent='Chưa bật đăng nhập Google cho dự án này ('+r.error.message+').'});
-      o.querySelector('#lf').addEventListener('submit',async function(e){
-        e.preventDefault();var b=o.querySelector('button[type=submit]');b.disabled=true;lm.style.color='#B3261E';lm.textContent='';
-        var em=o.querySelector('#le').value.trim(),pw=o.querySelector('#lp').value;
-        if(reg){
-          if(pw!==o.querySelector('#lp2').value){b.disabled=false;lm.textContent='Hai mật khẩu chưa khớp.';return}
-          var r=await sb.auth.signUp({email:em,password:pw,options:{emailRedirectTo:location.origin+location.pathname}});
-          b.disabled=false;
-          if(r.error){lm.textContent=/registered|exists/i.test(r.error.message)?'Email này đã đăng ký, hãy đăng nhập.':('Không đăng ký được: '+r.error.message);return}
-          if(r.data.session){session=r.data.session;closeOv();res();return}
-          lm.style.color='#1E7A4C';lm.textContent='Đã gửi email xác nhận. Mở email, bấm liên kết xác nhận rồi quay lại đăng nhập.';return
-        }
-        var r2=await sb.auth.signInWithPassword({email:em,password:pw});
-        if(r2.error){b.disabled=false;lm.textContent=/confirm/i.test(r2.error.message)?'Email chưa được xác nhận. Hãy mở email và bấm liên kết xác nhận.':'Sai email hoặc mật khẩu.';return}
-        session=r2.data.session;closeOv();res()});
+      var tab=opt.tab||'code';
+      function draw(){
+        var isC=tab==='code';
+        var o=overlay('<form id="ef" style="background:var(--surface,#fff);border:1px solid var(--line,#d5dbe0);border-radius:10px;padding:1.4rem;max-width:23rem;width:100%;display:grid;gap:.7rem"><h1 style="margin:0;font-size:1.25rem">Sổ theo dõi thiết kế</h1><div style="display:flex;gap:.4rem"><button type="button" data-t="code" class="btn'+(isC?' pri':'')+'" style="flex:1;min-height:2.5rem">Nhập mã xem</button><button type="button" data-t="mail" class="btn'+(isC?'':' pri')+'" style="flex:1;min-height:2.5rem">Chủ sổ (email)</button></div>'+
+          (isC?'<p style="margin:0;font-size:.875rem;color:var(--ink2,#555)">Nhập mã xem do chủ sổ cung cấp. Chỉ cần nhập một lần trên máy này.</p><input id="ec" type="text" autocomplete="off" autocapitalize="off" placeholder="Mã xem" required style="'+ST+';font-size:16px;min-height:2.75rem"><button class="btn pri" type="submit" style="min-height:2.75rem">Vào xem</button>'
+              :'<p style="margin:0;font-size:.875rem;color:var(--ink2,#555)">Dành cho chủ sổ, để chỉnh sửa dữ liệu.</p><input id="ee" type="email" placeholder="Email" autocomplete="username" required style="'+ST+';font-size:16px;min-height:2.75rem"><input id="ep" type="password" placeholder="Mật khẩu" autocomplete="current-password" required style="'+ST+';font-size:16px;min-height:2.75rem"><button class="btn pri" type="submit" style="min-height:2.75rem">Đăng nhập</button>')+
+          '<p id="em" style="margin:0;font-size:.8125rem;color:#B3261E;min-height:1.2em"></p>'+(opt.back?'<button type="button" id="eb" class="btn" style="min-height:2.5rem">← Quay lại sổ</button>':'')+'</form>');
+        var m=o.querySelector('#em');
+        [].forEach.call(o.querySelectorAll('[data-t]'),function(b){b.addEventListener('click',function(){tab=b.dataset.t;draw()})});
+        if(opt.back)o.querySelector('#eb').addEventListener('click',function(){res({back:true})});
+        o.querySelector('#ef').addEventListener('submit',async function(e){
+          e.preventDefault();var b=o.querySelector('button[type=submit]');b.disabled=true;m.textContent='Đang kiểm tra…';
+          if(isC){
+            var c=o.querySelector('#ec').value.trim(),ok=await checkCode(c);b.disabled=false;
+            if(ok===true){lsSet('stk-view',c);res({code:c})}else m.textContent=ok===false?'Mã xem chưa đúng.':'Chưa kết nối được máy chủ. Kiểm tra mạng rồi thử lại.';
+            return;
+          }
+          var r=await sb.auth.signInWithPassword({email:o.querySelector('#ee').value.trim(),password:o.querySelector('#ep').value});b.disabled=false;
+          if(r.error){m.textContent=/confirm/i.test(r.error.message)?'Email chưa được xác nhận. Hãy mở email và bấm liên kết xác nhận.':'Sai email hoặc mật khẩu.';return}
+          session=r.data.session;res({session:true});
+        });
+      }
+      draw();
     });
   }
   function meMail(){return ((session&&session.user&&session.user.email)||'').toLowerCase()}
@@ -393,11 +395,11 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
   }
   async function gate(){
     for(;;){
-      if(!session)await loginUi();
       if(await isAllowed())return;
       await sb.from('access_requests').upsert({email:meMail()});
       var w=await waitUi();
       if(w==='ok')return;
+      location.reload();return new Promise(function(){});
     }
   }
   function isStandalone(){return (window.matchMedia&&matchMedia('(display-mode: standalone)').matches)||navigator.standalone===true||/[?&]web=1/.test(location.search)}
@@ -428,7 +430,7 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
     if(!session){
       var saved=lsGet('stk-view');
       if(saved&&await checkCode(saved)===true)viewCode=saved;
-      else{lsSet('stk-view','');var pick=await codeUi();if(pick!=='owner')viewCode=pick}
+      else{lsSet('stk-view','');var e0=await entryUi({});if(e0.code)viewCode=e0.code}
     }
     if(viewCode){closeOv();viewerInit();return}
     await gate();isAdm=await amAdmin();closeOv();adminInit();
@@ -439,21 +441,10 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
     catch(e){return String(e.message||e)}
   }
   async function amAdmin(){try{var r=await sb.from('allowed_users').select('email,is_admin');return (r.data||[]).some(function(x){return x.is_admin&&String(x.email).toLowerCase()===meMail()})}catch(e){return false}}
-  function codeUi(){
-    return new Promise(function(res){
-      var o=overlay('<form id="cf" style="background:var(--surface,#fff);border:1px solid var(--line,#d5dbe0);border-radius:10px;padding:1.4rem;max-width:23rem;width:100%;display:grid;gap:.7rem"><h1 style="margin:0;font-size:1.25rem">Sổ theo dõi thiết kế</h1><p style="margin:0;font-size:.875rem;color:var(--ink2,#555)">Nhập mã xem do chủ sổ cung cấp. Chỉ cần nhập một lần trên máy này.</p><input id="cc" type="text" inputmode="text" autocomplete="off" autocapitalize="off" placeholder="Mã xem" required style="'+ST+';font-size:16px;min-height:2.75rem"><button class="btn pri" type="submit" style="min-height:2.75rem">Vào xem</button><p id="cm" style="margin:0;font-size:.8125rem;color:#B3261E;min-height:1.2em"></p><button type="button" id="co" class="btn" style="min-height:2.4rem">Tôi là chủ sổ · Đăng nhập</button></form>');
-      o.querySelector('#co').addEventListener('click',function(){res('owner')});
-      o.querySelector('#cf').addEventListener('submit',async function(e){
-        e.preventDefault();var b=o.querySelector('button[type=submit]'),m=o.querySelector('#cm'),c=o.querySelector('#cc').value.trim();
-        b.disabled=true;m.textContent='Đang kiểm tra…';var ok=await checkCode(c);b.disabled=false;
-        if(ok===true){lsSet('stk-view',c);res(c)}else m.textContent=ok===false?'Mã xem chưa đúng.':'Chưa kết nối được máy chủ. Kiểm tra mạng rồi thử lại.';
-      });
-    });
-  }
   function viewerInit(){
     var b=document.createElement('button');b.type='button';b.textContent='🔑 Chủ sổ';b.title='Đăng nhập để chỉnh sửa';
     b.style.cssText='position:fixed;left:1rem;bottom:1rem;z-index:50;font:500 .75rem inherit;padding:.4rem .7rem;border-radius:999px;border:1px solid var(--line,#ccc);background:var(--surface,#fff);color:var(--ink2,#555);cursor:pointer;opacity:.85';
-    b.addEventListener('click',async function(){await loginUi('', 'in');location.reload()});
+    b.addEventListener('click',async function(){var e1=await entryUi({tab:'mail',back:true});if(e1.back){closeOv();return}location.reload()});
     document.body.appendChild(b);
   }
   async function adminInit(){
