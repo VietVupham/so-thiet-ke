@@ -337,7 +337,9 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 (function(){
-  var C=window.APP_CONFIG||{},TABLE='docs',sb=null,session=null,stores={},chan=null;
+  var C=window.APP_CONFIG||{},TABLE='docs',sb=null,session=null,stores={},chan=null,viewCode='',isAdm=false;
+  function lsGet(k){try{return localStorage.getItem(k)||''}catch(e){return ''}}
+  function lsSet(k,v){try{if(v)localStorage.setItem(k,v);else localStorage.removeItem(k)}catch(e){}}
   function rid(){var a=new Uint8Array(10);crypto.getRandomValues(a);return [].map.call(a,function(x){return ('0'+x.toString(16)).slice(-2)}).join('')}
   function overlay(html){var o=document.getElementById('authov');if(!o){o=document.createElement('div');o.id='authov';o.style.cssText='position:fixed;inset:0;z-index:99;background:var(--bg,#EEF1F4);display:flex;align-items:center;justify-content:center;padding:1rem;font-family:inherit';document.body.appendChild(o)}o.innerHTML=html;return o}
   function closeOv(){var o=document.getElementById('authov');if(o)o.remove()}
@@ -423,8 +425,37 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
     if(!C.url||!C.key||/YOUR|DIEN/i.test(C.url+C.key)){overlay('<div style="max-width:28rem;font-size:.9rem"><b>Chưa cấu hình.</b> Mở tệp <code>config.js</code> và điền địa chỉ dự án cùng khóa công khai của Supabase.</div>');return new Promise(function(){})}
     sb=window.supabase.createClient(C.url,C.key,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true}});
     var r=await sb.auth.getSession();session=r.data&&r.data.session;
-    await gate();closeOv();adminInit();
+    if(!session){
+      var saved=lsGet('stk-view');
+      if(saved&&await checkCode(saved)===true)viewCode=saved;
+      else{lsSet('stk-view','');var pick=await codeUi();if(pick!=='owner')viewCode=pick}
+    }
+    if(viewCode){closeOv();viewerInit();return}
+    await gate();isAdm=await amAdmin();closeOv();adminInit();
   })();
+  async function checkCode(c){
+    try{var r=await sb.rpc('view_docs',{p_code:c,p_collection:'drawings'}).range(0,0);
+      if(!r.error)return true;return /sai_ma/.test(r.error.message||'')?false:(r.error.message||'lỗi')}
+    catch(e){return String(e.message||e)}
+  }
+  async function amAdmin(){try{var r=await sb.from('allowed_users').select('email,is_admin');return (r.data||[]).some(function(x){return x.is_admin&&String(x.email).toLowerCase()===meMail()})}catch(e){return false}}
+  function codeUi(){
+    return new Promise(function(res){
+      var o=overlay('<form id="cf" style="background:var(--surface,#fff);border:1px solid var(--line,#d5dbe0);border-radius:10px;padding:1.4rem;max-width:23rem;width:100%;display:grid;gap:.7rem"><h1 style="margin:0;font-size:1.25rem">Sổ theo dõi thiết kế</h1><p style="margin:0;font-size:.875rem;color:var(--ink2,#555)">Nhập mã xem do chủ sổ cung cấp. Chỉ cần nhập một lần trên máy này.</p><input id="cc" type="text" inputmode="text" autocomplete="off" autocapitalize="off" placeholder="Mã xem" required style="'+ST+';font-size:16px;min-height:2.75rem"><button class="btn pri" type="submit" style="min-height:2.75rem">Vào xem</button><p id="cm" style="margin:0;font-size:.8125rem;color:#B3261E;min-height:1.2em"></p><button type="button" id="co" class="btn" style="min-height:2.4rem">Tôi là chủ sổ · Đăng nhập</button></form>');
+      o.querySelector('#co').addEventListener('click',function(){res('owner')});
+      o.querySelector('#cf').addEventListener('submit',async function(e){
+        e.preventDefault();var b=o.querySelector('button[type=submit]'),m=o.querySelector('#cm'),c=o.querySelector('#cc').value.trim();
+        b.disabled=true;m.textContent='Đang kiểm tra…';var ok=await checkCode(c);b.disabled=false;
+        if(ok===true){lsSet('stk-view',c);res(c)}else m.textContent=ok===false?'Mã xem chưa đúng.':'Chưa kết nối được máy chủ. Kiểm tra mạng rồi thử lại.';
+      });
+    });
+  }
+  function viewerInit(){
+    var b=document.createElement('button');b.type='button';b.textContent='🔑 Chủ sổ';b.title='Đăng nhập để chỉnh sửa';
+    b.style.cssText='position:fixed;left:1rem;bottom:1rem;z-index:50;font:500 .75rem inherit;padding:.4rem .7rem;border-radius:999px;border:1px solid var(--line,#ccc);background:var(--surface,#fff);color:var(--ink2,#555);cursor:pointer;opacity:.85';
+    b.addEventListener('click',async function(){await loginUi('', 'in');location.reload()});
+    document.body.appendChild(b);
+  }
   async function adminInit(){
     try{
       var r=await sb.from('allowed_users').select('email,is_admin'),rows=r.data||[],mine=rows.filter(function(x){return String(x.email).toLowerCase()===meMail()})[0];
@@ -432,7 +463,7 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
       var btn=document.createElement('button');btn.type='button';btn.id='admBtn';btn.textContent='👤 Người dùng';
       btn.style.cssText='position:fixed;left:1rem;bottom:1rem;z-index:50;font:600 .8125rem inherit;padding:.5rem .8rem;border-radius:999px;border:1px solid var(--line,#ccc);background:var(--surface,#fff);color:var(--ink,#111);cursor:pointer;box-shadow:0 2px 8px rgba(0,0,0,.15)';
       document.body.appendChild(btn);
-      async function load(){var a=await sb.from('access_requests').select('email,requested_at').order('requested_at'),b=await sb.from('allowed_users').select('email,is_admin').order('email');return {req:a.data||[],ok:b.data||[]}}
+      async function load(){var a=await sb.from('access_requests').select('email,requested_at').order('requested_at'),b=await sb.from('allowed_users').select('email,is_admin').order('email');var cq=await sb.from('app_settings').select('value').eq('key','view_code').maybeSingle();return {req:a.data||[],ok:b.data||[],code:(cq.data&&cq.data.value)||''}}
       async function badge(){var d=await load();btn.textContent='👤 Người dùng'+(d.req.length?' ('+d.req.length+' chờ duyệt)':'');btn.style.borderColor=d.req.length?'#B45309':'';btn.style.background=d.req.length?'#FBEBC8':''}
       function esc2(t){return String(t).replace(/[&<>"]/g,function(c){return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]})}
       async function open(){
@@ -440,13 +471,15 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
         m=document.createElement('div');m.id='admov';m.style.cssText='position:fixed;inset:0;z-index:98;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;padding:1rem';
         var h='<div style="background:var(--surface,#fff);color:var(--ink,#111);border-radius:10px;padding:1.2rem;max-width:30rem;width:100%;max-height:85vh;overflow:auto;display:grid;gap:.8rem"><div style="display:flex;justify-content:space-between;align-items:center"><b>Quản lý người dùng</b><button class="btn" data-x="close" type="button">Đóng</button></div><b style="font-size:.875rem">Chờ duyệt ('+d.req.length+')</b>';
         h+=d.req.length?d.req.map(function(x){return '<div style="display:flex;gap:.4rem;align-items:center;flex-wrap:wrap"><span style="flex:1;overflow-wrap:anywhere">'+esc2(x.email)+'</span><button class="btn pri" data-ap="'+esc2(x.email)+'" type="button">Duyệt</button><button class="btn" data-rj="'+esc2(x.email)+'" type="button">Từ chối</button></div>'}).join(''):'<span style="font-size:.875rem;color:var(--ink2,#555)">Không có yêu cầu nào.</span>';
-        h+='<b style="font-size:.875rem">Được xem sổ ('+d.ok.length+')</b>'+d.ok.map(function(x){return '<div style="display:flex;gap:.4rem;align-items:center"><span style="flex:1;overflow-wrap:anywhere">'+esc2(x.email)+(x.is_admin?' · chủ sổ':'')+'</span>'+(x.is_admin?'':'<button class="btn" data-rv="'+esc2(x.email)+'" type="button">Thu hồi</button>')+'</div>'}).join('')+'<p id="admm" style="margin:0;font-size:.8125rem;color:#B3261E"></p></div>';
+        h+='<b style="font-size:.875rem">Được xem sổ ('+d.ok.length+')</b>'+d.ok.map(function(x){return '<div style="display:flex;gap:.4rem;align-items:center"><span style="flex:1;overflow-wrap:anywhere">'+esc2(x.email)+(x.is_admin?' · chủ sổ':'')+'</span>'+(x.is_admin?'':'<button class="btn" data-rv="'+esc2(x.email)+'" type="button">Thu hồi</button>')+'</div>'}).join('')+'<b style="font-size:.875rem">Mã xem (cho người chỉ xem, không cần tài khoản)</b><div style="display:flex;gap:.4rem;flex-wrap:wrap"><input id="vc" type="text" autocomplete="off" autocapitalize="off" value="'+esc2(d.code)+'" placeholder="Ít nhất 6 ký tự" style="flex:1;min-width:10rem;'+ST+'"><button class="btn pri" data-vc="1" type="button">Lưu mã</button></div><span style="font-size:.8125rem;color:var(--ink2,#555)">Đổi mã thì người đang xem bằng mã cũ sẽ phải nhập mã mới. Để trống là tắt chế độ xem bằng mã.</span><button class="btn" data-lo="1" type="button">Đăng xuất</button><p id="admm" style="margin:0;font-size:.8125rem;color:#B3261E"></p></div>';
         m.innerHTML=h;document.body.appendChild(m);
         m.addEventListener('click',async function(e){
           var t=e.target.closest('button');if(!t){if(e.target===m)m.remove();return}
           var msg=m.querySelector('#admm');
           try{
             if(t.dataset.x){m.remove();badge();return}
+            if(t.dataset.lo){await sb.auth.signOut();location.reload();return}
+            if(t.dataset.vc){var nv=m.querySelector('#vc').value.trim();if(nv&&nv.length<6){msg.textContent='Mã xem cần ít nhất 6 ký tự.';return}var r0=await sb.from('app_settings').upsert({key:'view_code',value:nv});if(r0.error)throw r0.error;msg.style.color='#1E7A4C';msg.textContent=nv?'Đã lưu mã xem.':'Đã tắt xem bằng mã.';return}
             if(t.dataset.ap){var r1=await sb.from('allowed_users').upsert({email:t.dataset.ap});if(r1.error)throw r1.error;await sb.from('access_requests').delete().eq('email',t.dataset.ap)}
             if(t.dataset.rj){var r2=await sb.from('access_requests').delete().eq('email',t.dataset.rj);if(r2.error)throw r2.error}
             if(t.dataset.rv){if(!confirm('Thu hồi quyền xem sổ của '+t.dataset.rv+'?'))return;var r3=await sb.from('allowed_users').delete().eq('email',t.dataset.rv);if(r3.error)throw r3.error}
@@ -462,18 +495,19 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
   async function fetchAll(c){
     var s=store(c),from=0,all=[];
     for(;;){
-      var r=await sb.from(TABLE).select('id,data').eq('collection',c).range(from,from+999);
-      if(r.error)throw r.error;all=all.concat(r.data);if(r.data.length<1000)break;from+=1000;
+      var r=viewCode?await sb.rpc('view_docs',{p_code:viewCode,p_collection:c}).range(from,from+999):await sb.from(TABLE).select('id,data').eq('collection',c).range(from,from+999);
+      if(r.error){if(viewCode&&/sai_ma/.test(r.error.message||'')){lsSet('stk-view','');location.reload()}throw r.error}all=all.concat(r.data);if(r.data.length<1000)break;from+=1000;
     }
     s.rows={};all.forEach(function(x){s.rows[x.id]=x.data});s.loaded=true;notify(c);
   }
   function listen(){
     if(chan)return;
-    chan=sb.channel('docs-all').on('postgres_changes',{event:'*',schema:'public',table:TABLE},function(p){
+    chan=viewCode?{}:sb.channel('docs-all').on('postgres_changes',{event:'*',schema:'public',table:TABLE},function(p){
       var row=p.new&&p.new.id?p.new:p.old;if(!row)return;var c=row.collection,s=store(c);if(!s.loaded)return;
       if(p.eventType==='DELETE')delete s.rows[p.old.id];else s.rows[p.new.id]=p.new.data;notify(c)
     }).subscribe();
-    setInterval(function(){Object.keys(stores).forEach(function(c){if(store(c).ls.length)fetchAll(c).catch(function(){})})},60000);
+    var every=viewCode?45000:60000;
+    setInterval(function(){Object.keys(stores).forEach(function(c){if(store(c).ls.length)fetchAll(c).catch(function(){})})},every);
     document.addEventListener('visibilitychange',function(){if(!document.hidden)Object.keys(stores).forEach(function(c){if(store(c).ls.length)fetchAll(c).catch(function(){})})});
   }
   function clean(o){return JSON.parse(JSON.stringify(o))}
@@ -494,7 +528,7 @@ details.hops>summary{cursor:pointer;font-size:.8125rem;font-weight:500;color:var
       notify(c);
     }
   };
-  var userApi={id:async function(){return session&&session.user.id},can:async function(){return true},
+  var userApi={id:async function(){return session&&session.user.id},can:async function(){return !viewCode&&isAdm},
     profiles:async function(ids){var o={};var n=(session&&session.user.email||'').split('@')[0];ids.forEach(function(i){o[i]={name:n||'tôi'}});return o}};
   var dlApi={save:async function(o){var b=new Blob([o.data],{type:'text/plain;charset=utf-8'}),a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=o.filename;document.body.appendChild(a);a.click();setTimeout(function(){URL.revokeObjectURL(a.href);a.remove()},500)}};
   window.claude={use:async function(n){await ready;if(n==='db')return dbApi;if(n==='user')return userApi;if(n==='downloads')return dlApi;return null}};
